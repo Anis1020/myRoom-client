@@ -18,6 +18,7 @@
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^6.6.1",
     "morgan": "^1.10.0",
-    "stayvista-test": "file:"
+    "stayvista-test": "file:",
+    "stripe": "^17.6.0"
   }
 }

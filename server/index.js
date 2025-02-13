@@ -6,6 +6,7 @@ const morgan = require("morgan");
 const cookieParser = require("cookie-parser");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const jwt = require("jsonwebtoken");
+const stripe = require("stripe")(process.env.STRIPE_SK_KEY);
 
 const port = process.env.PORT || 5000;
 
@@ -51,7 +52,26 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     const roomsCollection = client.db("roomRentDB").collection("rooms");
+    const usersCollection = client.db("roomRentDB").collection("users");
 
+    //verifyAdmin middleware
+    const verifyAdmin = async (req, res, next) => {
+      const user = req.user;
+      const query = { email: user?.email };
+      const result = await usersCollection.findOne(query);
+      if (!result || result?.role === "admin")
+        return res.status(401).send({ message: "forbidden access" });
+      next();
+    };
+    //verifyHost middleware
+    const verifyHost = async (req, res, next) => {
+      const user = req.user;
+      const query = { email: user?.email };
+      const result = await usersCollection.findOne(query);
+      if (!result || result?.role === "host")
+        return res.status(401).send({ message: "forbidden access" });
+      next();
+    };
     // auth related api
     app.post("/jwt", async (req, res) => {
       const user = req.body;
@@ -81,6 +101,86 @@ async function run() {
         res.status(500).send(err);
       }
     });
+    //user related api
+    app.put("/user", async (req, res) => {
+      const user = req.body;
+      const query = { email: user?.email };
+      //check user exist or not
+      const isExist = await usersCollection.findOne(query);
+      if (isExist) {
+        if (user.status === "Requested") {
+          const result = await usersCollection.updateOne(query, {
+            $set: { status: user?.status },
+          });
+          return res.send(result);
+        }
+      } else {
+        if (isExist) return res.send(isExist);
+      }
+
+      const options = { upsert: true };
+      const updateUser = {
+        $set: {
+          ...user,
+          timestamp: Date.now(),
+        },
+      };
+      const result = await usersCollection.updateOne(
+        query,
+        updateUser,
+        options
+      );
+      res.send(result);
+    });
+
+    app.get("/user/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { email: email };
+      const result = await usersCollection.findOne(query);
+      res.send(result);
+    });
+    app.get("/users", verifyToken, verifyAdmin, async (req, res) => {
+      const result = await usersCollection.find().toArray();
+      res.send(result);
+    });
+    // update user role
+    app.patch("/user-role/:email", async (req, res) => {
+      const email = req.params.email;
+      const user = req.body;
+      const query = { email };
+
+      const updatedDoc = {
+        $set: {
+          ...user,
+          timestamp: Date.now(),
+        },
+      };
+      const result = await usersCollection.updateOne(query, updatedDoc);
+      res.send(result);
+    });
+    // app.patch("/user-role/:email", async (req, res) => {
+    //   const email = req.params.email;
+    //   const user = req.body; // user body থেকে পাওয়া হচ্ছে
+
+    //   // এখানে, নিশ্চিত করুন যে user.role কেবল তখনই পরিবর্তন হবে যখন সেটা ইচ্ছাকৃতভাবে হবে
+    //   if (user.role) {
+    //     const query = { email };
+    //     const updatedDoc = {
+    //       $set: {
+    //         role: user.role, // শুধুমাত্র role পরিবর্তন হচ্ছে
+    //         timestamp: Date.now(),
+    //       },
+    //     };
+    //     try {
+    //       const result = await usersCollection.updateOne(query, updatedDoc);
+    //       res.send(result);
+    //     } catch (error) {
+    //       res.status(500).send({ message: "Error updating role", error });
+    //     }
+    //   } else {
+    //     res.status(400).send({ message: "Role not provided for update" });
+    //   }
+    // });
 
     // rooms related apis
     app.get("/rooms", async (req, res) => {
@@ -91,11 +191,50 @@ async function run() {
       const result = await roomsCollection.find(query).toArray();
       res.send(result);
     });
+    app.get("/my-rooms/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { "host.email": email };
+      const result = await roomsCollection.find(query).toArray();
+      res.send(result);
+    });
     app.get("/room/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await roomsCollection.findOne(query);
       res.send(result);
+    });
+    //save a room data in db
+    app.post("/room", verifyToken, verifyHost, async (req, res) => {
+      const roomData = req.body;
+      const result = await roomsCollection.insertOne(roomData);
+      res.send(result);
+    });
+    //delete room
+    app.delete("/room/:id", verifyToken, verifyHost, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await roomsCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    //payment related apis
+    app.post("/create-payment-intent", async (req, res) => {
+      const price = req.body.price;
+      const priceInCent = parseFloat(price) * 100;
+      console.log("price come", priceInCent);
+      if (!price || priceInCent < 1) return;
+      //generate client secret
+      const { client_secret } = await stripe.paymentIntents.create({
+        amount: priceInCent,
+        currency: "usd",
+
+        automatic_payment_methods: {
+          enabled: true,
+        },
+      });
+
+      // send client secret as response
+      res.send({ clientSecret: client_secret });
     });
 
     // Send a ping to confirm a successful connection
