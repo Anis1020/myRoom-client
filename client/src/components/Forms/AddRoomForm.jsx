@@ -1,7 +1,17 @@
 import { useState } from "react";
 import { categories } from "../Categories/CategoriesData";
 import { DateRange } from "react-date-range";
-const AddRoomForm = ({ dates, handleDate, handleAddRoom }) => {
+import { TbFidgetSpinner } from "react-icons/tb";
+const AddRoomForm = ({
+  dates,
+  handleDate,
+  handleAddRoom,
+  setImagePreview,
+  imagePreview,
+  imageText,
+  handleImageChange,
+  loading,
+}) => {
   const [state, setState] = useState([
     {
       startDate: new Date(),
@@ -81,13 +91,27 @@ const AddRoomForm = ({ dates, handleDate, handleAddRoom }) => {
                     <input
                       className="text-sm cursor-pointer w-36 hidden"
                       type="file"
+                      onChange={(e) => handleImageChange(e.target.files[0])}
                       name="image"
                       id="image"
                       accept="image/*"
                       hidden
                     />
-                    <div className="bg-rose-500 text-white border border-gray-300 rounded font-semibold cursor-pointer p-1 px-3 hover:bg-rose-500">
-                      Upload Image
+
+                    <div className="bg-rose-500 flex gap-4 relative text-white border border-gray-300 rounded font-semibold cursor-pointer p-1 px-3 hover:bg-rose-500">
+                      <span>
+                        {" "}
+                        {imageText.length > 20
+                          ? imageText.split(".")[0].slice(0, 15) +
+                            "..." +
+                            imageText.split(".")[1]
+                          : imageText}
+                      </span>
+                      <img
+                        className="w-10 absolute -right-14"
+                        src={imagePreview}
+                        alt=""
+                      />
                     </div>
                   </label>
                 </div>
@@ -168,10 +192,15 @@ const AddRoomForm = ({ dates, handleDate, handleAddRoom }) => {
         </div>
 
         <button
+          disabled={loading}
           type="submit"
           className="w-full p-3 mt-5 text-center font-medium text-white transition duration-200 rounded shadow-md bg-rose-500"
         >
-          Save & Continue
+          {loading ? (
+            <TbFidgetSpinner className="animate-spin m-auto" />
+          ) : (
+            "Save & Continue"
+          )}
         </button>
       </form>
     </div>

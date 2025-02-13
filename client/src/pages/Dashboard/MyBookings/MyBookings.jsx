@@ -1,52 +1,23 @@
 import { Helmet } from "react-helmet-async";
-import useAuth from "../../../hooks/useAuth";
+import BookingDataRow from "../../../components/Dashboard/TableRows/BookingDataRow";
+import { useQuery } from "@tanstack/react-query";
 import useAxiosSecure from "../../../hooks/useAxiosSecure";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import LoadingSpinner from "../../../components/Shared/LoadingSpinner";
-import RoomDataRow from "../../../components/Dashboard/TableRows/RoomDataRow";
-import toast from "react-hot-toast";
+import useAuth from "../../../hooks/useAuth";
 
-const MyListings = () => {
+const MyBookings = () => {
   const { user } = useAuth();
   const axiosSecure = useAxiosSecure();
-  //Get specific user's Room data
-  const {
-    data: rooms = [],
-    isLoading,
-    refetch,
-  } = useQuery({
-    queryKey: ["my-rooms", user?.email],
+  const { data: booking = [], refetch } = useQuery({
+    queryKey: ["booked-room", user?.email],
     queryFn: async () => {
-      const res = await axiosSecure.get(`/my-rooms/${user?.email}`);
-      return res.data;
-    },
-  });
-  //delete room
-  const { mutateAsync } = useMutation({
-    mutationFn: async (id) => {
-      const { data } = await axiosSecure.delete(`/room/${id}`);
+      const { data } = await axiosSecure(`/booked-room/${user?.email}`);
       return data;
     },
-    onSuccess: (data) => {
-      console.log(data);
-      refetch();
-      toast.success("Deleted Successfully");
-    },
   });
-  const handleDelete = async (id) => {
-    console.log(id);
-    try {
-      await mutateAsync(id);
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-  if (isLoading) return <LoadingSpinner />;
   return (
     <>
       <Helmet>
-        <title>My Listings</title>
+        <title>My Bookings</title>
       </Helmet>
 
       <div className="container mx-auto px-4 sm:px-8">
@@ -66,7 +37,7 @@ const MyListings = () => {
                       scope="col"
                       className="px-5 py-3 bg-white  border-b border-gray-200 text-gray-800  text-left text-sm uppercase font-normal"
                     >
-                      Location
+                      Info
                     </th>
                     <th
                       scope="col"
@@ -90,25 +61,14 @@ const MyListings = () => {
                       scope="col"
                       className="px-5 py-3 bg-white  border-b border-gray-200 text-gray-800  text-left text-sm uppercase font-normal"
                     >
-                      Delete
-                    </th>
-                    <th
-                      scope="col"
-                      className="px-5 py-3 bg-white  border-b border-gray-200 text-gray-800  text-left text-sm uppercase font-normal"
-                    >
-                      Update
+                      Action
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {/* Room row data */}
-                  {rooms?.map((room) => (
-                    <RoomDataRow
-                      key={room._id}
-                      room={room}
-                      handleDelete={handleDelete}
-                    ></RoomDataRow>
-                  ))}
+                  {/* Table Row Data */}
+                  {/* <RoomDataRow /> */}
+                  <BookingDataRow booking={booking} refetch={refetch} />
                 </tbody>
               </table>
             </div>
@@ -119,4 +79,4 @@ const MyListings = () => {
   );
 };
 
-export default MyListings;
+export default MyBookings;
